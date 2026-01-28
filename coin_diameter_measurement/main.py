@@ -15,30 +15,46 @@ REFERENCE_COIN_DIAMETER_MM = 27.0
 CAMERA_INDEX = 1
 TOLERANCE_MM = 1.5
 CIRCULARITY_THRESHOLD = 0.75
+MIN_CONTOUR_AREA = 1500
 
 # HELPER FUNCTIONS
 def identify_coin(diameter_mm):
-    closest_coin = "Unknown"
+    closest_coin = "Unknown Coin"
     min_diff = float("inf")
 
-    for coin, ref_diameter in COIN_DIAMETERS_MM.items():
-        diff = abs(diameter_mm - ref_diameter)
+    for coin, ref in COIN_DIAMETERS_MM.items():
+        diff = abs(diameter_mm - ref)
         if diff < min_diff and diff <= TOLERANCE_MM:
             min_diff = diff
             closest_coin = coin
-
     return closest_coin
 
 
-def is_circle(contour):
+def circularity(contour):
     area = cv2.contourArea(contour)
-    perimeter = cv2.arcLength(contour, True)
+    peri = cv2.arcLength(contour, True)
+    if peri == 0:
+        return 0
+    return (4 * math.pi * area) / (peri * peri)
 
-    if perimeter == 0:
-        return False, 0
 
-    circularity = (4 * math.pi * area) / (perimeter * perimeter)
-    return circularity >= CIRCULARITY_THRESHOLD, circularity
+def classify_polygon(contour):
+    peri = cv2.arcLength(contour, True)
+    approx = cv2.approxPolyDP(contour, 0.04 * peri, True)
+    vertices = len(approx)
+
+    if vertices == 3:
+        return "Triangle"
+    elif vertices == 4:
+        x, y, w, h = cv2.boundingRect(approx)
+        aspect_ratio = w / float(h)
+        if 0.95 <= aspect_ratio <= 1.05:
+            return "Square"
+        else:
+            return "Rectangle"
+    elif vertices > 4:
+        return "Polygon"
+    return "Unknown Shape"
 
 # CAMERA
 cap = cv2.VideoCapture(CAMERA_INDEX)
@@ -57,14 +73,11 @@ while True:
 
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (9, 9), 1.5)
-
-    # Edge detection for contour-based shape recognition
     edges = cv2.Canny(blurred, 50, 150)
 
-    contours, _ = cv2.findContours(
-        edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-    )
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+    # COIN DETECTION
     circles = cv2.HoughCircles(
         blurred,
         cv2.HOUGH_GRADIENT,
@@ -76,68 +89,68 @@ while True:
         maxRadius=120
     )
 
+    mm_per_pixel = None
+    detected_coin_centers = []
+
     if circles is not None:
         circles = np.uint16(np.around(circles[0]))
         reference_coin = max(circles, key=lambda c: c[2])
-        ref_radius_px = reference_coin[2]
-        mm_per_pixel = REFERENCE_COIN_DIAMETER_MM / (2 * ref_radius_px)
+        mm_per_pixel = REFERENCE_COIN_DIAMETER_MM / (2 * reference_coin[2])
 
         for (x, y, r) in circles:
-            x, y, r = int(x), int(y), int(r)
-
-            # Match contour near detected circle
-            shape_label = "Unknown Shape"
-            circ_value = 0
-
-            for cnt in contours:
-                (cx, cy), radius = cv2.minEnclosingCircle(cnt)
-                if abs(cx - x) < 10 and abs(cy - y) < 10:
-                    is_circ, circ_value = is_circle(cnt)
-                    shape_label = "Circle (Coin)" if is_circ else "Non-Circular"
-                    break
+            detected_coin_centers.append((x, y))
 
             diameter_mm = 2 * r * mm_per_pixel
             coin_name = identify_coin(diameter_mm)
 
-            # Draw circle
             cv2.circle(frame, (x, y), r, (0, 255, 0), 2)
             cv2.circle(frame, (x, y), 3, (0, 0, 255), -1)
-
-            # Display text
-            text_x = max(x - 70, 10)
-            text_y = max(y - r - 15, 25)
 
             cv2.putText(
                 frame,
                 f"{coin_name} | {diameter_mm:.1f} mm",
-                (text_x, text_y),
+                (x - 70, y - r - 10),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.55,
                 (255, 0, 0),
                 2
             )
 
-            cv2.putText(
-                frame,
-                f"{shape_label}",
-                (text_x, text_y + 18),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.5,
-                (3, 24, 255),
-                1
-            )
+    # SHAPE DETECTION (NON-COINS)
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        if area < MIN_CONTOUR_AREA:
+            continue
 
-            cv2.putText(
-                frame,
-                f"Circ: {circ_value:.2f}",
-                (text_x, text_y + 35),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.45,
-                (235, 47, 191),
-                1
-            )
+        circ = circularity(cnt)
+        if circ >= CIRCULARITY_THRESHOLD:
+            continue  # skip coins
 
-    cv2.imshow("Coin Diameter & Shape Recognition (OpenCV)", frame)
+        x, y, w, h = cv2.boundingRect(cnt)
+
+        # Skip contours close to detected coins
+        is_near_coin = False
+        for (cx, cy) in detected_coin_centers:
+            if abs(cx - (x + w // 2)) < 40 and abs(cy - (y + h // 2)) < 40:
+                is_near_coin = True
+                break
+        if is_near_coin:
+            continue
+
+        shape_name = classify_polygon(cnt)
+
+        cv2.drawContours(frame, [cnt], -1, (0, 255, 255), 2)
+        cv2.putText(
+            frame,
+            shape_name,
+            (x, y - 10),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (0, 255, 255),
+            2
+        )
+
+    cv2.imshow("Coin & Shape Recognition (OpenCV)", frame)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
