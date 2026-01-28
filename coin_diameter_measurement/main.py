@@ -123,7 +123,7 @@ while True:
                 (text_x, text_y + 18),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.5,
-                (0, 255, 255),
+                (3, 24, 255),
                 1
             )
 
@@ -133,7 +133,7 @@ while True:
                 (text_x, text_y + 35),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.45,
-                (0, 255, 255),
+                (235, 47, 191),
                 1
             )
 
