@@ -2,50 +2,102 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Coin Detection System</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #0f172a;
-            color: #e5e7eb;
-            text-align: center;
-            padding: 40px;
-        }
-        form {
-            margin-bottom: 30px;
-        }
-        input[type="file"] {
-            margin: 15px;
-        }
-        button {
-            padding: 10px 20px;
-            background: #2563eb;
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        img {
-            max-width: 90%;
-            border: 3px solid #22c55e;
-            margin-top: 20px;
-        }
-    </style>
+    <title>Coin Diameter Measurement</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
 
-    <h1>🪙 Coin Detection & Measurement</h1>
+<body class="bg-slate-900 text-slate-200 min-h-screen">
 
-    <form method="POST" enctype="multipart/form-data">
-        <input type="file" name="image" required>
-        <br>
-        <button type="submit">Upload & Process</button>
-    </form>
+<div class="max-w-6xl mx-auto px-6 py-10">
 
-    {% if processed_image %}
-        <h2>Processed Image</h2>
-        <img src="{{ url_for('static', filename=processed_image) }}">
+    <!-- Header -->
+    <div class="text-center mb-10">
+        <h1 class="text-4xl font-bold text-sky-400">🪙 Coin Diameter Measurement</h1>
+        <p class="text-slate-400 mt-2">Upload image → Detect coins → Measure diameter</p>
+    </div>
+
+    <!-- Upload Card -->
+    <div class="bg-slate-800 rounded-xl p-8 mb-10 shadow-lg">
+        <form method="POST" enctype="multipart/form-data" class="space-y-6">
+
+            <label class="border-2 border-dashed border-sky-400 rounded-lg p-10 flex flex-col items-center cursor-pointer hover:bg-slate-700">
+                <input id="imageInput" type="file" name="image" accept="image/*" class="hidden" required>
+                <span class="text-sky-400 font-semibold">📁 Click to upload coin image</span>
+            </label>
+
+            <div class="flex gap-4">
+                <button type="submit"
+                    class="w-full bg-sky-400 text-slate-900 font-bold py-3 rounded-lg hover:bg-sky-300">
+                    Process Image
+                </button>
+
+                <button type="button"
+                    onclick="clearResults()"
+                    class="w-full bg-red-500 text-white font-bold py-3 rounded-lg hover:bg-red-400">
+                    Clear
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Result Section -->
+    {% if output_image %}
+    <div id="resultSection" class="bg-slate-800 rounded-xl p-8 shadow-lg">
+
+        <h2 class="text-2xl font-semibold text-sky-400 mb-6">Detected Coins</h2>
+
+        <div class="flex justify-center mb-8">
+            <img id="resultImage"
+                 src="{{ url_for('static', filename='outputs/' + output_image) }}"
+                 class="rounded-lg border border-slate-600 max-w-full">
+        </div>
+
+        <table id="resultTable" class="w-full border border-slate-700">
+            <thead class="bg-slate-900">
+                <tr>
+                    <th class="p-3 border border-slate-700 text-sky-400">Coin #</th>
+                    <th class="p-3 border border-slate-700 text-sky-400">Diameter (mm)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for coin in table %}
+                <tr class="text-center hover:bg-slate-700">
+                    <td class="p-3 border border-slate-700">{{ coin.id }}</td>
+                    <td class="p-3 border border-slate-700">{{ coin.diameter }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="mt-4 text-right text-slate-400">
+            Total Coins:
+            <span class="text-sky-400 font-bold">{{ table|length }}</span>
+        </div>
+    </div>
     {% endif %}
+    
+</div>
+
+<footer class="text-center text-slate-500 py-6">
+    © 2026 Coin Detection System
+        <footer class="text-center text-slate-500 py-6">
+            Developed by Fayas Ismael - <a href="https://github.com/FAYASISMAEL" target="_blank" class="text-sky-400 hover:underline">GitHub Profile</a>
+        </footer>
+</footer>
+
+<!-- ✅ Clear Button Logic -->
+<script>
+function clearResults() {
+
+    // Clear file input
+    const input = document.getElementById("imageInput");
+    if (input) input.value = "";
+
+    // Remove result section if exists
+    const resultSection = document.getElementById("resultSection");
+    if (resultSection) resultSection.remove();
+}
+</script>
 
 </body>
 </html>

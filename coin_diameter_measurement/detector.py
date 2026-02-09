@@ -1,71 +1,91 @@
 import cv2
 import numpy as np
-import math
 
 REFERENCE_COIN_DIAMETER_MM = 27.0
-CIRCULARITY_THRESHOLD = 0.82
 MIN_CONTOUR_AREA = 2500
+CIRCULARITY_THRESHOLD = 0.70
 
 
-def is_circle(contour):
-    area = cv2.contourArea(contour)
-    perimeter = cv2.arcLength(contour, True)
-
+def is_circle(cnt):
+    area = cv2.contourArea(cnt)
+    perimeter = cv2.arcLength(cnt, True)
     if perimeter == 0:
-        return False, 0
+        return False
+    circularity = 4 * np.pi * area / (perimeter ** 2)
+    return circularity >= CIRCULARITY_THRESHOLD
 
-    circularity = (4 * math.pi * area) / (perimeter * perimeter)
-    return circularity >= CIRCULARITY_THRESHOLD, circularity
 
+def detect_coins(image_path):
+    image = cv2.imread(image_path)
+    if image is None:
+        raise ValueError("Image not found")
 
-def process_image(input_path, output_path):
-    frame = cv2.imread(input_path)
-    if frame is None:
-        raise ValueError("Unable to read image")
+    output = image.copy()
 
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    gray = cv2.GaussianBlur(gray, (11, 11), 1.5)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (11, 11), 0)
 
-    edges = cv2.Canny(gray, 40, 120)
-    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    thresh = cv2.adaptiveThreshold(
+        blur, 255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY_INV,
+        21, 3
+    )
 
-    coin_count = 0
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=2)
+
+    contours, _ = cv2.findContours(
+        thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+
+    coins = []
 
     for cnt in contours:
         area = cv2.contourArea(cnt)
         if area < MIN_CONTOUR_AREA:
             continue
+        if not is_circle(cnt):
+            continue
 
-        is_circ, circ = is_circle(cnt)
-        x, y, w, h = cv2.boundingRect(cnt)
+        (x, y), radius = cv2.minEnclosingCircle(cnt)
+        coins.append((int(x), int(y), int(radius)))
 
-        if is_circ:
-            coin_count += 1
-            cv2.drawContours(frame, [cnt], -1, (0, 255, 0), 3)
+    if not coins:
+        return output, []
 
-            text = f"Coin {coin_count}"
-            cv2.putText(
-                frame,
-                text,
-                (x, y - 10),
-                cv2.FONT_HERSHEY_DUPLEX,
-                0.9,
-                (0, 255, 0),
-                2
-            )
-        else:
-            cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
+    reference = max(coins, key=lambda c: c[2])
+    pixels_per_mm = (2 * reference[2]) / REFERENCE_COIN_DIAMETER_MM
 
-    # Summary banner
-    cv2.rectangle(frame, (0, 0), (frame.shape[1], 60), (0, 0, 0), -1)
+    table = []
+
+    for idx, (x, y, r) in enumerate(coins, start=1):
+        diameter_mm = round((2 * r) / pixels_per_mm, 2)
+
+        cv2.circle(output, (x, y), r, (0, 255, 0), 2)
+        cv2.putText(
+            output,
+            f"{diameter_mm} mm",
+            (x - 40, y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (0, 255, 0),
+            2
+        )
+
+        table.append({
+            "id": idx,
+            "diameter": diameter_mm
+        })
+
     cv2.putText(
-        frame,
-        f"Total Coins Detected: {coin_count}",
+        output,
+        f"Coins Detected: {len(table)}",
         (20, 40),
-        cv2.FONT_HERSHEY_DUPLEX,
-        1.1,
-        (0, 255, 255),
-        2
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        (0, 255, 0),
+        3
     )
 
-    cv2.imwrite(output_path, frame)
+    return output, table
