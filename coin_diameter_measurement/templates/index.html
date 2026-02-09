@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Coin Detection System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #0f172a;
+            color: #e5e7eb;
+            text-align: center;
+            padding: 40px;
+        }
+        form {
+            margin-bottom: 30px;
+        }
+        input[type="file"] {
+            margin: 15px;
+        }
+        button {
+            padding: 10px 20px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        img {
+            max-width: 90%;
+            border: 3px solid #22c55e;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🪙 Coin Detection & Measurement</h1>
+
+    <form method="POST" enctype="multipart/form-data">
+        <input type="file" name="image" required>
+        <br>
+        <button type="submit">Upload & Process</button>
+    </form>
+
+    {% if processed_image %}
+        <h2>Processed Image</h2>
+        <img src="{{ url_for('static', filename=processed_image) }}">
+    {% endif %}
+
+</body>
+</html>
