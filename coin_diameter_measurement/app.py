@@ -1,7 +1,7 @@
 import os
 import cv2
 from flask import Flask, render_template, request
-from detector import detect_coins
+from detector import detect_objects
 
 app = Flask(__name__)
 
@@ -11,22 +11,23 @@ OUTPUT_FOLDER = "static/outputs"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
+
 @app.route("/", methods=["GET", "POST"])
 def index():
+
     if request.method == "POST":
 
         if "image" not in request.files:
             return "No file uploaded", 400
 
         file = request.files["image"]
-
         if file.filename == "":
             return "No selected file", 400
 
         input_path = os.path.join(UPLOAD_FOLDER, file.filename)
         file.save(input_path)
 
-        output_img, table = detect_coins(input_path)
+        output_img, table = detect_objects(input_path)
 
         output_filename = "result.png"
         output_path = os.path.join(OUTPUT_FOLDER, output_filename)
